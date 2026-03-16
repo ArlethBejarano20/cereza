@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Iniciar sesión - CAICH</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="stylesheet" href="./styles/auth.css" />
+  </head>
+  <body>
+    <div class="auth-shell">
+      <div class="auth-brand">
+        <h1>CAICH</h1>
+        <span>Clínica de Psicología · Acceso</span>
+      </div>
+
+      <div class="auth-card">
+        <div class="auth-card-inner">
+          <header class="auth-title">
+            <h2>Iniciar sesión</h2>
+            <small>Accede con tu correo institucional</small>
+          </header>
+
+          <form id="login-form" class="auth-form" autocomplete="on">
+            <div class="auth-row">
+              <label class="auth-label" for="login-email">Correo electrónico</label>
+              <input
+                id="login-email"
+                name="email"
+                type="email"
+                class="auth-input"
+                placeholder="nombre@caich.edu"
+                required
+              />
+            </div>
+
+            <div class="auth-row">
+              <label class="auth-label" for="login-password">Contraseña</label>
+              <input
+                id="login-password"
+                name="password"
+                type="password"
+                class="auth-input"
+                placeholder="••••••••"
+                minlength="6"
+                required
+              />
+            </div>
+
+            <div class="auth-footer-row">
+              <a href="./register.html" class="auth-link">¿No tienes cuenta? Regístrate</a>
+              <a href="#" id="recover-link" class="auth-link">Olvidé mi contraseña</a>
+            </div>
+
+            <button type="submit" class="auth-button">
+              Entrar
+            </button>
+
+            <div id="login-message" class="auth-message"></div>
+          </form>
+
+          <p class="auth-hint">
+            Los permisos y vistas dentro del sistema dependen del rol asignado por
+            administración (paciente, psicólogo o administrador).
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <script type="module">
+      import { login, recoverPassword, getMyRole } from "./js/auth.js";
+
+      const form = document.getElementById("login-form");
+      const messageBox = document.getElementById("login-message");
+      const recoverLink = document.getElementById("recover-link");
+
+      function showMessage(text, type) {
+        if (!messageBox) return;
+        messageBox.textContent = text;
+        messageBox.className = "auth-message";
+        if (type === "error") {
+          messageBox.classList.add("auth-message--error");
+        } else if (type === "success") {
+          messageBox.classList.add("auth-message--success");
+        }
+      }
+
+      function redirectByRole(role) {
+        switch (role) {
+          case "admin":
+            window.location.href = "./admin/dashboard.html";
+            break;
+          case "psicologo":
+          case "psicólogo":
+            window.location.href = "./psychologist/dashboard.html";
+            break;
+          case "paciente":
+          default:
+            window.location.href = "./patient/dashboard.html";
+        }
+      }
+
+      form?.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const formData = new FormData(form);
+        const email = formData.get("email");
+        const password = formData.get("password");
+
+        showMessage("Verificando credenciales...", "success");
+
+        const { data, error } = await login(email, password);
+
+        if (error || !data) {
+          showMessage(error?.message || "No se pudo iniciar sesión.", "error");
+          return;
+        }
+
+        const roleResult = await getMyRole();
+        if (roleResult.error) {
+          showMessage(
+            "Sesión iniciada, pero no se pudo determinar el rol. Contacta a administración.",
+            "error"
+          );
+          return;
+        }
+
+        const role = roleResult.data;
+        showMessage("Inicio de sesión correcto. Redirigiendo...", "success");
+
+        setTimeout(() => redirectByRole(role), 700);
+      });
+
+      recoverLink?.addEventListener("click", async (event) => {
+        event.preventDefault();
+        const emailInput = document.getElementById("login-email");
+        const email = emailInput?.value;
+
+        if (!email) {
+          showMessage("Escribe tu correo para recuperar la contraseña.", "error");
+          return;
+        }
+
+        const { data, error } = await recoverPassword(email);
+        if (error || !data) {
+          showMessage(
+            error?.message || "No se pudo enviar el correo de recuperación.",
+            "error"
+          );
+          return;
+        }
+
+        showMessage(
+          "Si el correo existe en el sistema, recibirás un enlace de recuperación en unos minutos.",
+          "success"
+        );
+      });
+    </script>
+  </body>
+</html>
+

@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Registro de usuario - CAICH</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="stylesheet" href="./styles/auth.css" />
+  </head>
+  <body>
+    <div class="auth-shell">
+      <div class="auth-brand">
+        <h1>CAICH</h1>
+        <span>Clínica de Psicología · Registro</span>
+      </div>
+
+      <div class="auth-card">
+        <div class="auth-card-inner">
+          <header class="auth-title">
+            <h2>Crear cuenta</h2>
+            <small>Pacientes y psicólogos</small>
+          </header>
+
+          <form id="register-form" class="auth-form" autocomplete="on">
+            <div class="auth-row">
+              <label class="auth-label" for="reg-fullname">Nombre completo</label>
+              <input
+                id="reg-fullname"
+                name="fullName"
+                type="text"
+                class="auth-input"
+                placeholder="Nombre y apellidos"
+                required
+              />
+            </div>
+
+            <div class="auth-row">
+              <label class="auth-label" for="reg-email">Correo electrónico</label>
+              <input
+                id="reg-email"
+                name="email"
+                type="email"
+                class="auth-input"
+                placeholder="nombre@correo.com"
+                required
+              />
+            </div>
+
+            <div class="auth-row">
+              <label class="auth-label" for="reg-password">Contraseña</label>
+              <input
+                id="reg-password"
+                name="password"
+                type="password"
+                class="auth-input"
+                placeholder="Mínimo 6 caracteres"
+                minlength="6"
+                required
+              />
+            </div>
+
+            <div class="auth-row">
+              <label class="auth-label" for="reg-role">Rol en CAICH</label>
+              <select id="reg-role" name="role" class="auth-select" required>
+                <option value="" disabled selected>Selecciona tu rol</option>
+                <option value="paciente">Paciente</option>
+                <option value="psicologo">Psicólogo</option>
+              </select>
+            </div>
+
+            <div class="auth-role-row">
+              <strong>¿Qué rol debo elegir?</strong>
+              <span><b>Paciente</b>: personas que agendan y reciben atención.</span>
+              <span><b>Psicólogo</b>: profesionales que atienden pacientes dentro de CAICH.</span>
+              <span>Los roles avanzados (admin) los asigna el equipo de CAICH.</span>
+            </div>
+
+            <div class="auth-footer-row">
+              <a href="./login.html" class="auth-link">¿Ya tienes cuenta? Inicia sesión</a>
+            </div>
+
+            <button type="submit" class="auth-button">
+              Crear cuenta
+            </button>
+
+            <div id="register-message" class="auth-message"></div>
+          </form>
+
+          <p class="auth-hint">
+            Tras registrarte, es posible que debas validar tu correo electrónico antes de acceder
+            al sistema.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <script type="module">
+      import { register, login } from "./js/auth.js";
+
+      const form = document.getElementById("register-form");
+      const messageBox = document.getElementById("register-message");
+
+      function showMessage(text, type) {
+        if (!messageBox) return;
+        messageBox.textContent = text;
+        messageBox.className = "auth-message";
+        if (type === "error") {
+          messageBox.classList.add("auth-message--error");
+        } else if (type === "success") {
+          messageBox.classList.add("auth-message--success");
+        }
+      }
+
+      form?.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const formData = new FormData(form);
+        const fullName = formData.get("fullName");
+        const email = formData.get("email");
+        const password = formData.get("password");
+        const role = formData.get("role");
+
+        if (!role) {
+          showMessage("Selecciona un rol para continuar.", "error");
+          return;
+        }
+
+        showMessage("Creando cuenta...", "success");
+
+        const { data, error } = await register(email, password, fullName, role);
+
+        if (error || !data) {
+          showMessage(error?.message || "No se pudo crear la cuenta.", "error");
+          return;
+        }
+
+        // Dependiendo de la configuración de Supabase, puede requerir confirmación por correo.
+        if (data.user && !data.session) {
+          showMessage(
+            "Registro correcto. Revisa tu correo para confirmar la cuenta antes de iniciar sesión.",
+            "success"
+          );
+          return;
+        }
+
+        // Si ya hay sesión, redirigimos al login o directamente al sistema
+        showMessage("Cuenta creada correctamente. Redirigiendo a inicio de sesión...", "success");
+        setTimeout(() => {
+          window.location.href = "./login.html";
+        }, 900);
+      });
+    </script>
+  </body>
+</html>
+

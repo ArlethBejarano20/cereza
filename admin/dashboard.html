@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Panel administrador - CAICH</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="stylesheet" href="../styles/auth.css" />
+    <style>
+      .admin-layout {
+        display: grid;
+        grid-template-columns: minmax(0, 1.7fr) minmax(0, 1.3fr);
+        gap: 1rem;
+        margin-top: 0.5rem;
+      }
+
+      .admin-card {
+        border-radius: 1rem;
+        border: 1px solid rgba(148, 163, 184, 0.5);
+        background: rgba(15, 23, 42, 0.9);
+        padding: 1rem 1rem 0.9rem;
+      }
+
+      .admin-card h3 {
+        margin: 0 0 0.5rem;
+        font-size: 0.95rem;
+      }
+
+      .kpi-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 0.75rem;
+      }
+
+      .kpi {
+        border-radius: 0.9rem;
+        border: 1px solid rgba(148, 163, 184, 0.5);
+        padding: 0.6rem 0.7rem;
+        font-size: 0.8rem;
+      }
+
+      .kpi strong {
+        display: block;
+        font-size: 1.1rem;
+        margin-bottom: 0.2rem;
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.8rem;
+      }
+
+      th,
+      td {
+        padding: 0.45rem 0.4rem;
+        border-bottom: 1px solid rgba(31, 41, 55, 0.9);
+      }
+
+      th {
+        text-align: left;
+        font-weight: 500;
+        color: #9ca3af;
+      }
+
+      tbody tr:hover {
+        background: rgba(15, 23, 42, 0.7);
+      }
+
+      .pill {
+        display: inline-flex;
+        padding: 0.15rem 0.5rem;
+        border-radius: 999px;
+        font-size: 0.7rem;
+        border: 1px solid rgba(148, 163, 184, 0.7);
+      }
+
+      .pill--active {
+        border-color: rgba(74, 222, 128, 0.8);
+        color: #bbf7d0;
+      }
+
+      .pill--pending {
+        border-color: rgba(250, 204, 21, 0.8);
+        color: #fef9c3;
+      }
+
+      .pill--confirmed {
+        border-color: rgba(56, 189, 248, 0.8);
+        color: #e0f2fe;
+      }
+
+      .pill--cancelled {
+        border-color: rgba(248, 113, 113, 0.9);
+        color: #fecaca;
+      }
+
+      @media (max-width: 800px) {
+        .admin-layout {
+          grid-template-columns: minmax(0, 1fr);
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="auth-shell">
+      <div class="auth-brand">
+        <h1>CAICH</h1>
+        <span>Panel de administración</span>
+      </div>
+
+      <div class="auth-card">
+        <div class="auth-card-inner">
+          <header class="auth-title">
+            <h2>Resumen de actividad</h2>
+            <small id="today-label"></small>
+          </header>
+
+          <div class="admin-layout">
+            <section class="admin-card">
+              <h3>Indicadores del día</h3>
+              <div class="kpi-grid">
+                <div class="kpi">
+                  <strong id="kpi-total-dia">–</strong>
+                  Citas del día
+                </div>
+                <div class="kpi">
+                  <strong id="kpi-pendientes">–</strong>
+                  Pendientes por confirmar
+                </div>
+                <div class="kpi">
+                  <strong id="kpi-psicologos">–</strong>
+                  Psicólogos activos
+                </div>
+              </div>
+            </section>
+
+            <section class="admin-card">
+              <h3>Psicólogos activos</h3>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Nombre</th>
+                    <th>Especialidad</th>
+                    <th>Estado</th>
+                  </tr>
+                </thead>
+                <tbody id="psychologists-body"></tbody>
+              </table>
+            </section>
+          </div>
+
+          <section class="admin-card" style="margin-top: 1rem;">
+            <h3>Últimas citas registradas</h3>
+            <table>
+              <thead>
+                <tr>
+                  <th>Fecha</th>
+                  <th>Paciente</th>
+                  <th>Psicólogo</th>
+                  <th>Estado</th>
+                </tr>
+              </thead>
+              <tbody id="appointments-body"></tbody>
+            </table>
+          </section>
+
+          <div id="admin-message" class="auth-message"></div>
+        </div>
+      </div>
+    </div>
+
+    <script type="module">
+      import { supabase } from "../js/supabaseClient.js";
+      import { getCurrentUser, getMyRole } from "../js/auth.js";
+      import { getAllAppointments } from "../js/appointments.js";
+
+      const messageBox = document.getElementById("admin-message");
+
+      function showMessage(text, type) {
+        if (!messageBox) return;
+        messageBox.textContent = text;
+        messageBox.className = "auth-message";
+        if (type === "error") {
+          messageBox.classList.add("auth-message--error");
+        } else if (type === "success") {
+          messageBox.classList.add("auth-message--success");
+        }
+      }
+
+      async function enforceAdmin() {
+        const { data: user, error: userError } = await getCurrentUser();
+        if (userError || !user) {
+          window.location.href = "../login.html";
+          return null;
+        }
+
+        const { data: role, error: roleError } = await getMyRole();
+        if (roleError || role !== "admin") {
+          window.location.href = "../login.html";
+          return null;
+        }
+        return user;
+      }
+
+      function formatTodayLabel() {
+        const today = new Date();
+        const opts = { weekday: "long", year: "numeric", month: "short", day: "numeric" };
+        const label = today.toLocaleDateString("es-ES", opts);
+        document.getElementById("today-label").textContent = label;
+        return today.toISOString().slice(0, 10);
+      }
+
+      async function loadKPIs(todayStr) {
+        const { data: citasDia, error } = await supabase
+          .from("citas")
+          .select("id, estado")
+          .eq("fecha", todayStr);
+
+        if (!error && citasDia) {
+          document.getElementById("kpi-total-dia").textContent = citasDia.length;
+          const pendientes = citasDia.filter((c) => c.estado === "pendiente").length;
+          document.getElementById("kpi-pendientes").textContent = pendientes;
+        }
+
+        const { data: psicologos, error: psyError } = await supabase
+          .from("psicologos")
+          .select("id")
+          .eq("activo", true);
+        if (!psyError && psicologos) {
+          document.getElementById("kpi-psicologos").textContent = psicologos.length;
+        }
+      }
+
+      async function loadPsychologistsTable() {
+        const tbody = document.getElementById("psychologists-body");
+        tbody.innerHTML = "";
+        const { data, error } = await supabase
+          .from("psicologos")
+          .select("*")
+          .eq("activo", true)
+          .order("nombre_completo", { ascending: true });
+
+        if (error) {
+          showMessage("Error al cargar psicólogos activos.", "error");
+          return;
+        }
+
+        if (!data.length) {
+          tbody.innerHTML = "<tr><td colspan='3'>No hay psicólogos activos.</td></tr>";
+          return;
+        }
+
+        data.forEach((p) => {
+          const tr = document.createElement("tr");
+          tr.innerHTML = `
+            <td>${p.nombre_completo || "-"}</td>
+            <td>${p.especialidad || "-"}</td>
+            <td><span class="pill pill--active">Activo</span></td>
+          `;
+          tbody.appendChild(tr);
+        });
+      }
+
+      async function loadLatestAppointments() {
+        const tbody = document.getElementById("appointments-body");
+        tbody.innerHTML = "";
+        const { data, error } = await getAllAppointments();
+
+        if (error) {
+          showMessage("Error al cargar citas.", "error");
+          return;
+        }
+
+        if (!data.length) {
+          tbody.innerHTML = "<tr><td colspan='4'>No hay citas registradas.</td></tr>";
+          return;
+        }
+
+        const latest = data.slice(-10).reverse();
+
+        latest.forEach((c) => {
+          const estado = String(c.estado || "").toLowerCase();
+          let pillClass = "pill";
+          if (estado === "pendiente") pillClass += " pill--pending";
+          else if (estado === "confirmada") pillClass += " pill--confirmed";
+          else if (estado === "cancelada") pillClass += " pill--cancelled";
+
+          const tr = document.createElement("tr");
+          tr.innerHTML = `
+            <td>${c.fecha || ""} ${c.hora ? c.hora.slice(0, 5) : ""}</td>
+            <td>${c.pacientes?.nombre_completo || "Paciente"}</td>
+            <td>${c.psicologos?.nombre_completo || "Psicólogo"}</td>
+            <td><span class="${pillClass}">${c.estado || "-"}</span></td>
+          `;
+          tbody.appendChild(tr);
+        });
+      }
+
+      (async function init() {
+        const user = await enforceAdmin();
+        if (!user) return;
+
+        const todayStr = formatTodayLabel();
+        await Promise.all([loadKPIs(todayStr), loadPsychologistsTable(), loadLatestAppointments()]);
+      })();
+    </script>
+  </body>
+</html>
+

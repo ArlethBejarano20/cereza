@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Gestión de psicólogos - CAICH</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="stylesheet" href="../styles/auth.css" />
+    <style>
+      .admin-layout-single {
+        margin-top: 0.5rem;
+      }
+
+      .admin-card {
+        border-radius: 1rem;
+        border: 1px solid rgba(148, 163, 184, 0.5);
+        background: rgba(15, 23, 42, 0.9);
+        padding: 1rem 1rem 0.9rem;
+      }
+
+      .admin-card-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 0.75rem;
+      }
+
+      .admin-card-header h3 {
+        margin: 0;
+        font-size: 0.95rem;
+      }
+
+      .admin-actions {
+        display: flex;
+        gap: 0.5rem;
+      }
+
+      .btn-outline {
+        border-radius: 999px;
+        border: 1px solid rgba(148, 163, 184, 0.8);
+        padding: 0.4rem 0.7rem;
+        background: transparent;
+        color: #e5e7eb;
+        font-size: 0.8rem;
+        cursor: pointer;
+      }
+
+      .btn-outline:hover {
+        background: rgba(30, 64, 175, 0.6);
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.8rem;
+      }
+
+      th,
+      td {
+        padding: 0.45rem 0.4rem;
+        border-bottom: 1px solid rgba(31, 41, 55, 0.9);
+      }
+
+      th {
+        text-align: left;
+        font-weight: 500;
+        color: #9ca3af;
+      }
+
+      tbody tr:hover {
+        background: rgba(15, 23, 42, 0.7);
+      }
+
+      .tag {
+        display: inline-flex;
+        padding: 0.1rem 0.45rem;
+        border-radius: 999px;
+        border: 1px solid rgba(148, 163, 184, 0.7);
+        font-size: 0.7rem;
+      }
+
+      .pill {
+        display: inline-flex;
+        padding: 0.1rem 0.45rem;
+        border-radius: 999px;
+        border: 1px solid rgba(148, 163, 184, 0.7);
+        font-size: 0.7rem;
+      }
+
+      .pill--active {
+        border-color: rgba(74, 222, 128, 0.8);
+        color: #bbf7d0;
+      }
+
+      .pill--inactive {
+        border-color: rgba(148, 163, 184, 0.8);
+        color: #e5e7eb;
+      }
+
+      .table-actions button {
+        margin-right: 0.25rem;
+        border-radius: 999px;
+        border: 1px solid rgba(148, 163, 184, 0.8);
+        background: transparent;
+        color: #e5e7eb;
+        font-size: 0.75rem;
+        padding: 0.2rem 0.5rem;
+        cursor: pointer;
+      }
+
+      .table-actions button[data-action="delete"] {
+        border-color: rgba(248, 113, 113, 0.9);
+        color: #fecaca;
+      }
+
+      .inline-form {
+        margin-top: 0.75rem;
+        border-top: 1px solid rgba(31, 41, 55, 0.9);
+        padding-top: 0.75rem;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="auth-shell">
+      <div class="auth-brand">
+        <h1>CAICH</h1>
+        <span>Administración · Psicólogos</span>
+      </div>
+
+      <div class="auth-card admin-layout-single">
+        <div class="auth-card-inner">
+          <header class="admin-card-header">
+            <h3>Psicólogos registrados</h3>
+            <div class="admin-actions">
+              <button id="new-psychologist-btn" class="btn-outline">
+                Nuevo psicólogo
+              </button>
+              <a href="./dashboard.html" class="auth-link">Volver al panel</a>
+            </div>
+          </header>
+
+          <table>
+            <thead>
+              <tr>
+                <th>Nombre</th>
+                <th>Especialidad</th>
+                <th>Estado</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="psychologists-body"></tbody>
+          </table>
+
+          <div id="psychologist-form-container" class="inline-form"></div>
+
+          <div id="psychologists-message" class="auth-message"></div>
+        </div>
+      </div>
+    </div>
+
+    <script type="module">
+      import { supabase } from "../js/supabaseClient.js";
+      import { getCurrentUser, getMyRole } from "../js/auth.js";
+
+      const tbody = document.getElementById("psychologists-body");
+      const formContainer = document.getElementById("psychologist-form-container");
+      const messageBox = document.getElementById("psychologists-message");
+      const newPsychologistBtn = document.getElementById("new-psychologist-btn");
+
+      function showMessage(text, type) {
+        if (!messageBox) return;
+        messageBox.textContent = text;
+        messageBox.className = "auth-message";
+        if (type === "error") {
+          messageBox.classList.add("auth-message--error");
+        } else if (type === "success") {
+          messageBox.classList.add("auth-message--success");
+        }
+      }
+
+      async function enforceAdmin() {
+        const { data: user, error: userError } = await getCurrentUser();
+        if (userError || !user) {
+          window.location.href = "../login.html";
+          return null;
+        }
+
+        const { data: role, error: roleError } = await getMyRole();
+        if (roleError || role !== "admin") {
+          window.location.href = "../login.html";
+          return null;
+        }
+        return user;
+      }
+
+      async function loadPsychologists() {
+        tbody.innerHTML = "";
+        const { data, error } = await supabase
+          .from("psicologos")
+          .select("*")
+          .order("created_at", { ascending: false });
+
+        if (error) {
+          console.error(error);
+          showMessage("Error al cargar psicólogos.", "error");
+          return;
+        }
+
+        if (!data.length) {
+          tbody.innerHTML = "<tr><td colspan='4'>No hay psicólogos registrados.</td></tr>";
+          return;
+        }
+
+        data.forEach((p) => {
+          const tr = document.createElement("tr");
+          const active = Boolean(p.activo);
+          tr.innerHTML = `
+            <td>${p.nombre_completo || "-"}</td>
+            <td>${p.especialidad || "-"}</td>
+            <td>
+              <span class="pill ${
+                active ? "pill--active" : "pill--inactive"
+              }">${active ? "Activo" : "Inactivo"}</span>
+            </td>
+            <td class="table-actions">
+              <button data-action="edit" data-id="${p.id}">Editar</button>
+              <button data-action="toggle" data-id="${p.id}">${
+                active ? "Desactivar" : "Activar"
+              }</button>
+              <button data-action="delete" data-id="${p.id}">Eliminar</button>
+            </td>
+          `;
+          tbody.appendChild(tr);
+        });
+      }
+
+      function renderForm(psychologist = null) {
+        const isEdit = Boolean(psychologist);
+        formContainer.innerHTML = `
+          <form id="psychologist-form" class="auth-form">
+            <div class="auth-row">
+              <label class="auth-label" for="ps-name">Nombre completo</label>
+              <input
+                id="ps-name"
+                name="nombre_completo"
+                type="text"
+                class="auth-input"
+                required
+                value="${psychologist?.nombre_completo || ""}"
+              />
+            </div>
+            <div class="auth-row">
+              <label class="auth-label" for="ps-specialty">Especialidad</label>
+              <input
+                id="ps-specialty"
+                name="especialidad"
+                type="text"
+                class="auth-input"
+                value="${psychologist?.especialidad || ""}"
+              />
+            </div>
+            <div class="auth-row">
+              <label class="auth-label" for="ps-active">Activo</label>
+              <select id="ps-active" name="activo" class="auth-select">
+                <option value="true" ${psychologist?.activo !== false ? "selected" : ""}>
+                  Sí
+                </option>
+                <option value="false" ${psychologist?.activo === false ? "selected" : ""}>
+                  No
+                </option>
+              </select>
+            </div>
+            <div class="auth-footer-row">
+              <button type="button" id="cancel-form" class="btn-outline">Cancelar</button>
+              <button type="submit" class="auth-button">
+                ${isEdit ? "Guardar cambios" : "Registrar psicólogo"}
+              </button>
+            </div>
+          </form>
+        `;
+
+        const form = document.getElementById("psychologist-form");
+        const cancelBtn = document.getElementById("cancel-form");
+
+        cancelBtn?.addEventListener("click", () => {
+          formContainer.innerHTML = "";
+        });
+
+        form?.addEventListener("submit", async (event) => {
+          event.preventDefault();
+          const formData = new FormData(form);
+          const payload = {
+            nombre_completo: formData.get("nombre_completo"),
+            especialidad: formData.get("especialidad") || null,
+            activo: formData.get("activo") === "true"
+          };
+
+          let result;
+          if (isEdit) {
+            result = await supabase
+              .from("psicologos")
+              .update(payload)
+              .eq("id", psychologist.id)
+              .select()
+              .single();
+          } else {
+            result = await supabase.from("psicologos").insert(payload).select().single();
+          }
+
+          if (result.error) {
+            console.error(result.error);
+            showMessage(
+              result.error.message || "No se pudo guardar el psicólogo.",
+              "error"
+            );
+            return;
+          }
+
+          showMessage("Psicólogo guardado correctamente.", "success");
+          formContainer.innerHTML = "";
+          await loadPsychologists();
+        });
+      }
+
+      tbody.addEventListener("click", async (event) => {
+        const target = event.target;
+        if (!(target instanceof HTMLElement)) return;
+        const action = target.dataset.action;
+        const id = target.dataset.id;
+        if (!action || !id) return;
+
+        if (action === "edit") {
+          const { data, error } = await supabase
+            .from("psicologos")
+            .select("*")
+            .eq("id", id)
+            .single();
+          if (error) {
+            console.error(error);
+            showMessage("No se pudo cargar el psicólogo para edición.", "error");
+            return;
+          }
+          renderForm(data);
+        } else if (action === "toggle") {
+          const { data, error } = await supabase
+            .from("psicologos")
+            .select("activo")
+            .eq("id", id)
+            .single();
+          if (error) {
+            console.error(error);
+            showMessage("No se pudo actualizar el estado.", "error");
+            return;
+          }
+          const newValue = !data.activo;
+          const updateResult = await supabase
+            .from("psicologos")
+            .update({ activo: newValue })
+            .eq("id", id);
+          if (updateResult.error) {
+            console.error(updateResult.error);
+            showMessage("No se pudo actualizar el estado.", "error");
+            return;
+          }
+          await loadPsychologists();
+        } else if (action === "delete") {
+          if (!confirm("¿Eliminar este psicólogo? Esta acción no se puede deshacer.")) return;
+          const { error } = await supabase.from("psicologos").delete().eq("id", id);
+          if (error) {
+            console.error(error);
+            showMessage("No se pudo eliminar el psicólogo.", "error");
+            return;
+          }
+          showMessage("Psicólogo eliminado.", "success");
+          await loadPsychologists();
+        }
+      });
+
+      newPsychologistBtn?.addEventListener("click", () => {
+        renderForm(null);
+      });
+
+      (async function init() {
+        const user = await enforceAdmin();
+        if (!user) return;
+        await loadPsychologists();
+      })();
+    </script>
+  </body>
+</html>
+
